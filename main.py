@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 
 from filemover import FileMover
-from argparse import ArgumentParser
+from argparse import ArgumentParser, Action
 import os
 import platform
 from pathlib import Path
@@ -512,47 +512,58 @@ def toggle_mod(mod_name, enable=True, debug=False):
         except Exception as e:
             print(f"❌ Error disabling mod: {e}")
 
+__version__ = "0.2.1"
+
+class VersionAction(Action):
+    def __call__(self, parser, namespace, values, option_string=None):
+        print(f"MCPM v{__version__}")
+        parser.exit()
 
 if __name__=="__main__":
     cfg_file_str = str(get_config_file())
     arg = ArgumentParser(description="Minecraft Package Manager [MCPM].")
     
     arg.add_argument("--debug", action="store_true", help="Enable debug mode")
-    
+    arg.add_argument(
+        "-v", "--version",
+        action=VersionAction,
+        nargs=0,
+        help="Show version and exit"
+    )
     subparsers = arg.add_subparsers(dest="command", help="Subcommands")
     
     # Config command
-    config_parser = subparsers.add_parser("config", help="Config Management")
+    config_parser = subparsers.add_parser("config", aliases=["C"], help="Config Management")
     config_parser.add_argument("--home_dir", type=str, required=True, help="Path to home directory for /mods")
     
     # Checkout command
-    checkout_parser = subparsers.add_parser("checkout", help="Switch to a version")
+    checkout_parser = subparsers.add_parser("checkout", aliases=["c"], help="Switch to a version")
     checkout_parser.add_argument("version", type=str, help="Version to switch to")
     
     # List command with detail flag
-    list_parser = subparsers.add_parser("list", help="List available versions")
+    list_parser = subparsers.add_parser("list", aliases=["l"], help="List available versions")
     list_parser.add_argument("-d", "--detail", action="store_true", 
                             help="Show individual mod names for each version")
     
     # Import command
-    import_parser = subparsers.add_parser("import", help="Import mods to .mcpm-all-mods")
+    import_parser = subparsers.add_parser("import", aliases=["i"], help="Import mods to .mcpm-all-mods")
     import_parser.add_argument("mod_path", type=str, help="Path to mod file or directory")
     
     # Clear command
-    clear_parser = subparsers.add_parser("clear", help="Clear all .jar files from home directory")
+    clear_parser = subparsers.add_parser("clear", aliases=["cl", "clr", "cls"], help="Clear all .jar files from home directory")
     clear_parser.add_argument("--force", "-f", action="store_true", 
                              help="Skip confirmation prompt")
     
     # Search command
-    search_parser = subparsers.add_parser("search", help="Search for mods by name")
+    search_parser = subparsers.add_parser("search", aliases=["s"], help="Search for mods by name")
     search_parser.add_argument("query", type=str, help="Search query (case-insensitive)")
     
     # Enable command
-    enable_parser = subparsers.add_parser("enable", help="Enable a disabled mod")
+    enable_parser = subparsers.add_parser("enable", aliases=["e"], help="Enable a disabled mod")
     enable_parser.add_argument("mod_name", type=str, help="Mod filename with .disabled suffix")
     
     # Disable command
-    disable_parser = subparsers.add_parser("disable", help="Disable a mod")
+    disable_parser = subparsers.add_parser("disable", aliases=["d"], help="Disable a mod")
     disable_parser.add_argument("mod_name", type=str, help="Mod filename to disable")
     
     args = arg.parse_args()
