@@ -32,7 +32,7 @@ options:
 ```
 
 - Enable/Disable mods
-- Version checekout
+- Version checkout (that is, switching between versions without manually moving mod files)
 - List mods
 
 ## Install and run
