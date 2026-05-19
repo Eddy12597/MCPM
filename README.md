@@ -9,26 +9,28 @@ Used for launchers without version manager (e.g. TLauncher) where mods are store
 ## Features
 
 ```
-usage: mcpm [-h] [--debug]
-               {config,checkout,list,import,clear,search,enable,disable} ...
+usage: mcpm.exe [-h] [--debug] [-v]
+                {config,C,checkout,c,list,l,import,i,clear,cl,clr,cls,search,s,enable,e,disable,d} ...
 
 Minecraft Package Manager [MCPM].
 
 positional arguments:
-  {config,checkout,list,import,clear,search,enable,disable}
+  {config,C,checkout,c,list,l,import,i,clear,cl,clr,cls,search,s,enable,e,disable,d}
                         Subcommands
-    config              Config Management
-    checkout            Switch to a version
-    list                List available versions
-    import              Import mods to .mcpm-all-mods
-    clear               Clear all .jar files from home directory
-    search              Search for mods by name
-    enable              Enable a disabled mod
-    disable             Disable a mod
+    config (C)          Config Management
+    checkout (c)        Switch to a version
+    list (l)            List available versions
+    import (i)          Import mods to .mcpm-all-mods
+    clear (cl, clr, cls)
+                        Clear all .jar files from home directory
+    search (s)          Search for mods by name
+    enable (e)          Enable a disabled mod
+    disable (d)         Disable a mod
 
 options:
   -h, --help            show this help message and exit
   --debug               Enable debug mode
+  -v, --version         Show version and exit
 ```
 
 - Enable/Disable mods
