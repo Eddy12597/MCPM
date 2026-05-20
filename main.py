@@ -534,7 +534,7 @@ if __name__=="__main__":
     
     # Config command
     config_parser = subparsers.add_parser("config", aliases=["C"], help="Config Management")
-    config_parser.add_argument("--home_dir", "-h", "--homedir", "--home-dir", type=str, required=True, help="Path to home directory for /mods")
+    config_parser.add_argument("--home_dir", "-H", "--homedir", "--home-dir", type=str, required=True, help="Path to home directory for /mods")
     
     # Checkout command
     checkout_parser = subparsers.add_parser("checkout", aliases=["c"], help="Switch to a version")
