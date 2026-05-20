@@ -523,7 +523,7 @@ if __name__=="__main__":
     cfg_file_str = str(get_config_file())
     arg = ArgumentParser(description="Minecraft Package Manager [MCPM].")
     
-    arg.add_argument("--debug", action="store_true", help="Enable debug mode")
+    arg.add_argument("-d", "--debug", action="store_true", help="Enable debug mode")
     arg.add_argument(
         "-v", "--version",
         action=VersionAction,
@@ -534,7 +534,7 @@ if __name__=="__main__":
     
     # Config command
     config_parser = subparsers.add_parser("config", aliases=["C"], help="Config Management")
-    config_parser.add_argument("--home_dir", type=str, required=True, help="Path to home directory for /mods")
+    config_parser.add_argument("--home_dir", "-h", "--homedir", "--home-dir", type=str, required=True, help="Path to home directory for /mods")
     
     # Checkout command
     checkout_parser = subparsers.add_parser("checkout", aliases=["c"], help="Switch to a version")
