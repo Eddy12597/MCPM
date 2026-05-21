@@ -125,7 +125,12 @@ def get_minecraft_versions(mod_name: str) -> set[str]:
     An empty set means universal (compatible with any version).
     """
     name = mod_name.rsplit('.', 1)[0] if '.' in mod_name else mod_name
-
+    override_match = re.search(r'mcpm-override-(\d+\.\d+(?:\.\d+)?)', name, re.IGNORECASE)
+    if override_match:
+        ver = override_match.group(1)
+        if is_valid_mc_version(ver):
+            return {ver}
+        
     # 1. Explicit "mc" or "minecraft" marker
     mc_pattern = re.compile(r'(?:mc|minecraft)[-_]?(\d+\.\d+(?:\.\d+)?)', re.IGNORECASE)
     explicit = mc_pattern.findall(name)
@@ -363,6 +368,9 @@ def clear_mods(debug):
         return
     
     print(f"Found {len(jar_files)} .jar files to remove.")
+    if debug:
+        for f in jar_files:
+            print(f)
     
     # Confirm deletion
     response = input("Are you sure you want to delete all .jar files from the home directory? (y/N): ")
@@ -512,7 +520,122 @@ def toggle_mod(mod_name, enable=True, debug=False):
         except Exception as e:
             print(f"❌ Error disabling mod: {e}")
 
-__version__ = "0.2.1"
+def change_mod_version(mod_name, target_version, debug=False, force=False):
+    """Rename a mod in .mcpm-all-mods to set/change a version override."""
+    home_dir = config_get("HOME_DIR", None)
+    if not home_dir:
+        print("Error: HOME_DIR not configured. Run 'config --home_dir <path>' first.")
+        return
+
+    if not is_valid_mc_version(target_version):
+        print(f"Error: '{target_version}' is not a valid Minecraft version.")
+        return
+
+    all_mods_dir = Path(home_dir) / ".mcpm-all-mods"
+    if not all_mods_dir.exists():
+        print("No .mcpm-all-mods directory found. Import mods first.")
+        return
+
+    original_path = all_mods_dir / mod_name
+    if not original_path.exists():
+        print(f"Error: '{mod_name}' not found in .mcpm-all-mods.")
+        return
+    if not original_path.suffix == '.jar':
+        print(f"Error: '{mod_name}' is not a .jar file.")
+        return
+
+    # Strip any existing mcpm-override-* suffix from the stem
+    stem = original_path.stem
+    new_stem = re.sub(r'-mcpm-override-\d+\.\d+(\.\d+)?$', '', stem, flags=re.IGNORECASE)
+
+    # Build new name with the target version
+    new_name = f"{new_stem}-mcpm-override-{target_version}.jar"
+    new_path = all_mods_dir / new_name
+
+    if original_path.resolve() == new_path.resolve():
+        print(f"Mod already set to version {target_version}. No changes made.")
+        return
+
+    if new_path.exists() and not force:
+        print(f"Warning: '{new_name}' already exists. Use --force to overwrite.")
+        return
+
+    if not force:
+        confirm = input(f"Rename '{mod_name}' to '{new_name}'? (y/N): ")
+        if confirm.lower() not in ('y', 'yes'):
+            print("Operation cancelled.")
+            return
+
+    try:
+        shutil.move(str(original_path), str(new_path))
+        print(f"✅ Mod version changed to {target_version}")
+        if debug:
+            print(f"   Renamed: {mod_name} -> {new_name}")
+    except Exception as e:
+        print(f"❌ Error renaming file: {e}")
+
+def reset_mod_version(mod_name, debug=False, force=False):
+    """Remove any mcpm-override from a mod's filename, restoring original version detection."""
+    home_dir = config_get("HOME_DIR", None)
+    if not home_dir:
+        print("Error: HOME_DIR not configured. Run 'config --home_dir <path>' first.")
+        return
+
+    all_mods_dir = Path(home_dir) / ".mcpm-all-mods"
+    if not all_mods_dir.exists():
+        print("No .mcpm-all-mods directory found.")
+        return
+
+    original_path = all_mods_dir / mod_name
+    if not original_path.exists():
+        print(f"Error: '{mod_name}' not found in .mcpm-all-mods.")
+        return
+
+    # Check if it actually has an override
+    stem = original_path.stem
+    if not re.search(r'-mcpm-override-\d+\.\d+(\.\d+)?$', stem, re.IGNORECASE):
+        print(f"'{mod_name}' has no version override to remove.")
+        return
+
+    # Remove the override suffix
+    new_stem = re.sub(r'-mcpm-override-\d+\.\d+(\.\d+)?$', '', stem, flags=re.IGNORECASE)
+    new_name = f"{new_stem}.jar"
+    new_path = all_mods_dir / new_name
+
+    if new_path.exists() and not force:
+        print(f"Warning: '{new_name}' already exists. Use --force to overwrite.")
+        return
+
+    if not force:
+        # Show what versions the mod would be detected as
+        original_versions = get_minecraft_versions(mod_name)
+        override_versions = get_minecraft_versions(new_name)
+        
+        print(f"Current override: {', '.join(original_versions) if original_versions else 'none'}")
+        print(f"Would detect as: {', '.join(override_versions) if override_versions else 'universal'}")
+        
+        confirm = input(f"Rename '{mod_name}' to '{new_name}'? (y/N): ")
+        if confirm.lower() not in ('y', 'yes'):
+            print("Operation cancelled.")
+            return
+
+    try:
+        shutil.move(str(original_path), str(new_path))
+        print(f"✅ Version override removed from '{mod_name}'")
+        if debug:
+            print(f"   Renamed: {mod_name} -> {new_name}")
+            
+            # Show what versions it's now compatible with
+            new_versions = get_minecraft_versions(new_name)
+            if new_versions:
+                print(f"   Now compatible with: {', '.join(sorted(new_versions))}")
+            else:
+                print(f"   Now treated as: universal")
+    except Exception as e:
+        print(f"❌ Error renaming file: {e}")
+
+
+__version__ = "0.2.3"
 
 class VersionAction(Action):
     def __call__(self, parser, namespace, values, option_string=None):
@@ -566,6 +689,20 @@ if __name__=="__main__":
     disable_parser = subparsers.add_parser("disable", aliases=["d"], help="Disable a mod")
     disable_parser.add_argument("mod_name", type=str, help="Mod filename to disable")
     
+    # change mod version
+    change_mod_version_parser = subparsers.add_parser("chv", aliases=["cv"], help="Change mod version")
+    change_mod_version_parser.add_argument("mod_name", type=str, help="Mod filename in .mcpm-all-mods")
+    change_mod_version_parser.add_argument("target_version", type=str, help="Target Minecraft version")
+    change_mod_version_parser.add_argument("--force", "-f", action="store_true", help="Skip confirmation prompt")
+    
+    # Reset/deoverride command
+    reset_parser = subparsers.add_parser("reset", aliases=["deoverride", "ro", "rs"], 
+                                        help="Remove version override from a mod")
+    reset_parser.add_argument("mod_name", type=str, 
+                            help="Mod filename in .mcpm-all-mods (with override)")
+    reset_parser.add_argument("--force", "-f", action="store_true", 
+                            help="Skip confirmation prompt")
+    
     args = arg.parse_args()
     debug = args.debug
     
@@ -602,6 +739,12 @@ if __name__=="__main__":
         toggle_mod(args.mod_name, enable=True, debug=debug)
     elif args.command == "disable":
         toggle_mod(args.mod_name, enable=False, debug=debug)
+    elif args.command == "chv":
+        force = getattr(args, 'force', False)
+        change_mod_version(args.mod_name, args.target_version, debug=debug, force=force)
+    elif args.command == "reset":
+        force = getattr(args, 'force', False)
+        reset_mod_version(args.mod_name, debug=debug, force=force)
     else:
         arg.print_help()
         
