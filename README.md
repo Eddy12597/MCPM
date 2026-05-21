@@ -50,7 +50,7 @@ pip install -r requirements.txt
 python install_win.py
 ```
 
-Then add `/path/to/MCPM/dist/` to PATH
+`/path/to/MCPM/dist/` *should* be automatically added to PATH. If it doesn't work, try adding to PATH manually. 
 
 ## After Installation
 
