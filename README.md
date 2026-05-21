@@ -9,13 +9,13 @@ Used for launchers without version manager (e.g. TLauncher) where mods are store
 ## Features
 
 ```
-usage: mcpm.exe [-h] [--debug] [-v]
-                {config,C,checkout,c,list,l,import,i,clear,cl,clr,cls,search,s,enable,e,disable,d} ...
+usage: mcpm.exe [-h] [-d] [-v]
+                {config,C,checkout,c,list,l,import,i,clear,cl,clr,cls,search,s,enable,e,disable,d,chv,cv,reset,deoverride,ro,rs} ...
 
 Minecraft Package Manager [MCPM].
 
 positional arguments:
-  {config,C,checkout,c,list,l,import,i,clear,cl,clr,cls,search,s,enable,e,disable,d}
+  {config,C,checkout,c,list,l,import,i,clear,cl,clr,cls,search,s,enable,e,disable,d,chv,cv,reset,deoverride,ro,rs}
                         Subcommands
     config (C)          Config Management
     checkout (c)        Switch to a version
@@ -26,10 +26,13 @@ positional arguments:
     search (s)          Search for mods by name
     enable (e)          Enable a disabled mod
     disable (d)         Disable a mod
+    chv (cv)            Change mod version
+    reset (deoverride, ro, rs)
+                        Remove version override from a mod
 
 options:
   -h, --help            show this help message and exit
-  --debug               Enable debug mode
+  -d, --debug           Enable debug mode
   -v, --version         Show version and exit
 ```
 
