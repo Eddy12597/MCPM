@@ -36,6 +36,7 @@ options:
 - Enable/Disable mods
 - Version checkout (that is, switching between versions without manually moving mod files)
 - List mods
+- Force override mod version and reset
 
 ## Install and run
 
