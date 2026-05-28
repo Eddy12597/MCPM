@@ -250,71 +250,6 @@ def main(vers, debug):
         
     except Exception as e:
         print(f"❌ Error during checkout: {e}")
-            
-def list_versions(debug, show_mods=False):
-    """List all available Minecraft versions found in .mcpm-all-mods"""
-    home_dir = config_get("HOME_DIR", None)
-    if not home_dir:
-        print("Error: HOME_DIR not configured. Run 'config --home_dir <path>' first.")
-        return
-    
-    all_mods_dir = Path(home_dir) / ".mcpm-all-mods"
-    if not all_mods_dir.exists():
-        print("No mods directory found. Import some mods first!")
-        return
-    
-    versions = {}
-    universal = []
-    
-    try:
-        for mod in os.listdir(all_mods_dir):
-            if not mod.endswith('.jar'):
-                continue
-            mc_versions = get_minecraft_versions(mod)
-            if not mc_versions:
-                universal.append(mod)
-            else:
-                for v in mc_versions:
-                    versions.setdefault(v, []).append(mod)
-    except Exception as e:
-        print(f"Error reading mods directory: {e}")
-        return
-    
-    if not versions and not universal:
-        print("No mods found in .mcpm-all-mods")
-        return
-    
-    print("\n" + "="*70)
-    print("AVAILABLE MINECRAFT VERSIONS")
-    print("="*70)
-    
-    # Sort versions naturally
-    def version_sort_key(v):
-        parts = v.split('.')
-        return tuple(int(p) for p in parts)
-    
-    for version in sorted(versions.keys(), key=version_sort_key):
-        mod_count = len(versions[version])
-        print(f"\n📦 Version {version} ({mod_count} mods)")
-        
-        if show_mods or debug:
-            for mod in sorted(versions[version]):
-                print(f"   - {mod}")
-    
-    if universal:
-        print(f"\n🌐 Universal mods ({len(universal)}):")
-        if show_mods or debug:
-            for mod in sorted(universal):
-                print(f"   - {mod}")
-        else:
-            print(f"   (use -d or --detail to show mod names)")
-    
-    # Summary
-    total_versioned = sum(len(mods) for mods in versions.values())
-    print(f"\n📊 Summary: {total_versioned} versioned mods across {len(versions)} versions")
-    print(f"🌐 {len(universal)} universal mods")
-    print(f"📁 Total: {total_versioned + len(universal)} mods in .mcpm-all-mods")
-
 
 def import_mods(mod_path, debug):
     """Import mod files to .mcpm-all-mods"""
@@ -464,13 +399,15 @@ def search_mods(query, debug):
 
 
 def toggle_mod(mod_name, enable=True, debug=False):
-    """Enable or disable a mod by adding/removing .disabled suffix."""
+    """Enable or disable a mod by adding/removing .disabled suffix.
+    Works on mods in both home directory and .mcpm-all-mods repository."""
     home_dir = config_get("HOME_DIR", None)
     if not home_dir:
         print("Error: HOME_DIR not configured. Run 'config --home_dir <path>' first.")
         return
     
     home_path = Path(home_dir)
+    all_mods_dir = home_path / ".mcpm-all-mods"
     
     if enable:
         # Enable: remove .disabled suffix
@@ -479,18 +416,32 @@ def toggle_mod(mod_name, enable=True, debug=False):
             print("To enable a mod, specify the full filename including '.disabled'")
             return
         
+        # Check in home directory first
         disabled_path = home_path / mod_name
-        if not disabled_path.exists():
-            print(f"Error: '{mod_name}' not found in home directory.")
+        if disabled_path.exists():
+            target_dir = home_path
+            is_repo = False
+        # Then check in repository
+        elif all_mods_dir.exists():
+            disabled_path = all_mods_dir / mod_name
+            if disabled_path.exists():
+                target_dir = all_mods_dir
+                is_repo = True
+            else:
+                print(f"Error: '{mod_name}' not found in home directory or .mcpm-all-mods.")
+                return
+        else:
+            print(f"Error: '{mod_name}' not found.")
             return
         
         # Remove .disabled suffix
         enabled_name = mod_name[:-9]  # Remove '.disabled'
-        enabled_path = home_path / enabled_name
+        enabled_path = target_dir / enabled_name
         
         try:
             shutil.move(str(disabled_path), str(enabled_path))
-            print(f"✅ Enabled: {enabled_name}")
+            location = "repository" if is_repo else "home directory"
+            print(f"✅ Enabled: {enabled_name} (in {location})")
             if debug:
                 print(f"   Moved: {mod_name} -> {enabled_name}")
         except Exception as e:
@@ -502,23 +453,266 @@ def toggle_mod(mod_name, enable=True, debug=False):
             mod_name += '.jar'
         
         mod_path = home_path / mod_name
-        if not mod_path.exists():
-            print(f"Error: '{mod_name}' not found in home directory.")
+        all_mods_path = all_mods_dir / mod_name if all_mods_dir.exists() else None
+        
+        if mod_path.exists():
+            target_path = mod_path
+            target_dir = home_path
+            is_repo = False
+        elif all_mods_path and all_mods_path.exists():
+            target_path = all_mods_path
+            target_dir = all_mods_dir
+            is_repo = True
+        else:
+            print(f"Error: '{mod_name}' not found in home directory or .mcpm-all-mods.")
             return
         
         if mod_name.endswith('.disabled'):
             print(f"Error: '{mod_name}' is already disabled.")
             return
         
-        disabled_path = home_path / (mod_name + '.disabled')
+        disabled_path = target_dir / (mod_name + '.disabled')
         
         try:
-            shutil.move(str(mod_path), str(disabled_path))
-            print(f"🚫 Disabled: {mod_name}")
+            shutil.move(str(target_path), str(disabled_path))
+            location = "repository" if is_repo else "home directory"
+            print(f"🚫 Disabled: {mod_name} (in {location})")
             if debug:
                 print(f"   Moved: {mod_name} -> {mod_name}.disabled")
         except Exception as e:
             print(f"❌ Error disabling mod: {e}")
+
+def list_mods(debug, show_mods=False):
+    """List mods based on detail level.
+    Without detail: simple list of .jar files in home directory (like ls | grep .jar)
+    With detail: formatted list of mods in home directory and .mcpm-all-mods"""
+    home_dir = config_get("HOME_DIR", None)
+    if not home_dir:
+        print("Error: HOME_DIR not configured. Run 'config --home_dir <path>' first.")
+        return
+    
+    home_path = Path(home_dir)
+    all_mods_dir = home_path / ".mcpm-all-mods"
+    
+    if not show_mods:
+        # Simple mode: just list .jar files in home directory
+        if not home_path.exists():
+            print("Home directory does not exist.")
+            return
+        
+        # Get all files ending with .jar or .jar.disabled
+        jar_files = []
+        try:
+            for f in os.listdir(home_path):
+                if os.path.isfile(home_path / f) and (f.endswith('.jar') or f.endswith('.jar.disabled')):
+                    jar_files.append(f)
+        except Exception as e:
+            print(f"Error reading home directory: {e}")
+            return
+        
+        if not jar_files:
+            print("No mods found in home directory.")
+            return
+        
+        # Simple listing, one per line
+        for f in sorted(jar_files):
+            print(f)
+    
+    else:
+        # Detail mode: show both home directory and repository
+        print("\n" + "="*70)
+        print("MODS IN HOME DIRECTORY")
+        print("="*70)
+        
+        if not home_path.exists():
+            print("Home directory does not exist.")
+        else:
+            active_mods = []
+            disabled_mods = []
+            
+            try:
+                for f in os.listdir(home_path):
+                    if not os.path.isfile(home_path / f):
+                        continue
+                    if f.endswith('.jar.disabled'):
+                        disabled_mods.append(f)
+                    elif f.endswith('.jar'):
+                        active_mods.append(f)
+            except Exception as e:
+                print(f"Error reading home directory: {e}")
+                active_mods = disabled_mods = []
+            
+            if active_mods:
+                print(f"\n✅ Active mods ({len(active_mods)}):")
+                for mod in sorted(active_mods):
+                    versions = get_minecraft_versions(mod)
+                    version_str = ', '.join(sorted(versions)) if versions else 'universal'
+                    
+                    file_path = home_path / mod
+                    size = file_path.stat().st_size
+                    if size > 1024 * 1024:
+                        size_str = f"{size / (1024*1024):.1f} MB"
+                    elif size > 1024:
+                        size_str = f"{size / 1024:.1f} KB"
+                    else:
+                        size_str = f"{size} B"
+                    
+                    print(f"   - {mod}")
+                    print(f"     Versions: {version_str} | Size: {size_str}")
+            
+            if disabled_mods:
+                print(f"\n🚫 Disabled mods ({len(disabled_mods)}):")
+                for mod in sorted(disabled_mods):
+                    # Remove .disabled for version detection
+                    clean_name = mod[:-9]  # Remove '.disabled'
+                    versions = get_minecraft_versions(clean_name)
+                    version_str = ', '.join(sorted(versions)) if versions else 'universal'
+                    
+                    file_path = home_path / mod
+                    size = file_path.stat().st_size
+                    if size > 1024 * 1024:
+                        size_str = f"{size / (1024*1024):.1f} MB"
+                    elif size > 1024:
+                        size_str = f"{size / 1024:.1f} KB"
+                    else:
+                        size_str = f"{size} B"
+                    
+                    print(f"   - {mod}")
+                    print(f"     Versions: {version_str} | Size: {size_str}")
+            
+            if not active_mods and not disabled_mods:
+                print("\nNo mods found in home directory.")
+        
+        # Repository section
+        if all_mods_dir.exists():
+            print("\n" + "="*70)
+            print("MODS IN REPOSITORY (.mcpm-all-mods)")
+            print("="*70)
+            
+            repo_mods = []
+            try:
+                for f in os.listdir(all_mods_dir):
+                    if os.path.isfile(all_mods_dir / f) and (f.endswith('.jar') or f.endswith('.jar.disabled')):
+                        repo_mods.append(f)
+            except Exception as e:
+                print(f"Error reading repository: {e}")
+                repo_mods = []
+            
+            if repo_mods:
+                active_repo = [m for m in repo_mods if not m.endswith('.disabled')]
+                disabled_repo = [m for m in repo_mods if m.endswith('.disabled')]
+                
+                if active_repo:
+                    print(f"\n📦 Active in repository ({len(active_repo)}):")
+                    for mod in sorted(active_repo):
+                        versions = get_minecraft_versions(mod)
+                        version_str = ', '.join(sorted(versions)) if versions else 'universal'
+                        
+                        file_path = all_mods_dir / mod
+                        size = file_path.stat().st_size
+                        if size > 1024 * 1024:
+                            size_str = f"{size / (1024*1024):.1f} MB"
+                        elif size > 1024:
+                            size_str = f"{size / 1024:.1f} KB"
+                        else:
+                            size_str = f"{size} B"
+                        
+                        print(f"   - {mod}")
+                        print(f"     Versions: {version_str} | Size: {size_str}")
+                
+                if disabled_repo:
+                    print(f"\n🚫 Disabled in repository ({len(disabled_repo)}):")
+                    for mod in sorted(disabled_repo):
+                        clean_name = mod[:-9]
+                        versions = get_minecraft_versions(clean_name)
+                        version_str = ', '.join(sorted(versions)) if versions else 'universal'
+                        
+                        file_path = all_mods_dir / mod
+                        size = file_path.stat().st_size
+                        if size > 1024 * 1024:
+                            size_str = f"{size / (1024*1024):.1f} MB"
+                        elif size > 1024:
+                            size_str = f"{size / 1024:.1f} KB"
+                        else:
+                            size_str = f"{size} B"
+                        
+                        print(f"   - {mod}")
+                        print(f"     Versions: {version_str} | Size: {size_str}")
+                
+                # Summary
+                total = len(active_repo) + len(disabled_repo)
+                print(f"\n📊 Repository summary: {total} total ({len(active_repo)} active, {len(disabled_repo)} disabled)")
+            else:
+                print("\nNo mods found in repository.")
+        else:
+            print("\n📁 No repository found. Import some mods first!")
+        
+        print("\n" + "="*70)
+
+# Update the list_versions function to use the new list_mods function
+def list_versions(debug, show_mods=False):
+    """List all available Minecraft versions found in .mcpm-all-mods"""
+    home_dir = config_get("HOME_DIR", None)
+    if not home_dir:
+        print("Error: HOME_DIR not configured. Run 'config --home_dir <path>' first.")
+        return
+    
+    all_mods_dir = Path(home_dir) / ".mcpm-all-mods"
+    if not all_mods_dir.exists():
+        print("No mods directory found. Import some mods first!")
+        return
+    
+    versions = {}
+    universal = []
+    
+    try:
+        for mod in os.listdir(all_mods_dir):
+            if not mod.endswith('.jar'):
+                continue
+            mc_versions = get_minecraft_versions(mod)
+            if not mc_versions:
+                universal.append(mod)
+            else:
+                for v in mc_versions:
+                    versions.setdefault(v, []).append(mod)
+    except Exception as e:
+        print(f"Error reading mods directory: {e}")
+        return
+    
+    if not versions and not universal:
+        print("No mods found in .mcpm-all-mods")
+        return
+    
+    print("\n" + "="*70)
+    print("AVAILABLE MINECRAFT VERSIONS")
+    print("="*70)
+    
+    # Sort versions naturally
+    def version_sort_key(v):
+        parts = v.split('.')
+        return tuple(int(p) for p in parts)
+    
+    for version in sorted(versions.keys(), key=version_sort_key):
+        mod_count = len(versions[version])
+        print(f"\n📦 Version {version} ({mod_count} mods)")
+        
+        if show_mods or debug:
+            for mod in sorted(versions[version]):
+                print(f"   - {mod}")
+    
+    if universal:
+        print(f"\n🌐 Universal mods ({len(universal)}):")
+        if show_mods or debug:
+            for mod in sorted(universal):
+                print(f"   - {mod}")
+        else:
+            print(f"   (use -d or --detail to show mod names)")
+    
+    # Summary
+    total_versioned = sum(len(mods) for mods in versions.values())
+    print(f"\n📊 Summary: {total_versioned} versioned mods across {len(versions)} versions")
+    print(f"🌐 {len(universal)} universal mods")
+    print(f"📁 Total: {total_versioned + len(universal)} mods in .mcpm-all-mods")
 
 def change_mod_version(mod_name, target_version, debug=False, force=False):
     """Rename a mod in .mcpm-all-mods to set/change a version override."""
@@ -635,7 +829,7 @@ def reset_mod_version(mod_name, debug=False, force=False):
         print(f"❌ Error renaming file: {e}")
 
 
-__version__ = "0.2.3"
+__version__ = "0.2.4"
 
 class VersionAction(Action):
     def __call__(self, parser, namespace, values, option_string=None):
@@ -711,7 +905,7 @@ if __name__=="__main__":
     elif args.command == "checkout":
         main(args.version, debug)
     elif args.command == "list":
-        list_versions(debug, show_mods=getattr(args, 'detail', False))
+        list_mods(debug, show_mods=getattr(args, 'detail', False))
     elif args.command == "import":
         import_mods(args.mod_path, debug)
     elif args.command == "clear":
