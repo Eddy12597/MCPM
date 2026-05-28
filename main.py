@@ -829,7 +829,7 @@ def reset_mod_version(mod_name, debug=False, force=False):
         print(f"❌ Error renaming file: {e}")
 
 
-__version__ = "0.2.4"
+__version__ = "0.2.5"
 
 class VersionAction(Action):
     def __call__(self, parser, namespace, values, option_string=None):
@@ -945,3 +945,4 @@ if __name__=="__main__":
     if debug:
         print(f"\nConfig file directory: {cfg_file_str}")
         print(f"Home Directory: {config_get('HOME_DIR', None)}")
+        input("Press Enter to exit...")
