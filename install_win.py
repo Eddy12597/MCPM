@@ -6,7 +6,6 @@ import os
 import ctypes
 
 subprocess.run(["pyinstaller", "--onefile", "main.py"])
-shutil.move(Path(__name__).parent / "dist" / "main.exe", Path(__name__).parent / "dist" / "mcpm.exe")
 
 
 key = winreg.OpenKey(
@@ -30,3 +29,4 @@ if directory not in current_path.split(os.pathsep):
 
 winreg.CloseKey(key)
 
+shutil.move(Path(__name__).parent / "dist" / "main.exe", Path(__name__).parent / "dist" / "mcpm.exe")
